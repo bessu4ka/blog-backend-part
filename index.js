@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
+import multer from 'multer';
 
-import * as UserController from './controllers/UserController.js';
-import * as PostController from './controllers/PostController.js';
 import express from 'express';
-import checkAuth from './utils/checkAuth.js';
+import { UserController, PostController } from './controllers/index.js';
+import { handleValidationErrors, checkAuth } from './utils/index.js';
 import {
 	registerValidation,
 	loginValidation,
@@ -19,17 +19,52 @@ mongoose
 
 const app = express();
 
-app.use(express.json());
+const storage = multer.diskStorage({
+	destination: (_, __, cb) => {
+		cb(null, 'uploads');
+	},
+	filename: (_, file, cb) => {
+		cb(null, file.originalname);
+	},
+});
 
-app.post('/auth/login', loginValidation, UserController.login);
-app.post('/auth/register', registerValidation, UserController.register);
+const upload = multer({ storage });
+
+app.use(express.json());
+app.use('/uploads', express.static('uploads'));
+
 app.get('/auth/me', checkAuth, UserController.getMe);
+app.post('/auth/login', loginValidation, handleValidationErrors, UserController.login);
+app.post(
+	'/auth/register',
+	registerValidation,
+	handleValidationErrors,
+	UserController.register,
+);
+
+app.post('/upload', checkAuth, upload.single('image'), (req, res) => {
+	res.json({
+		url: `/uploads/${req.file.originalname}`,
+	});
+});
 
 app.get('/posts', PostController.getAll);
 app.get('/posts/:id', PostController.getOne);
-app.post('/posts', checkAuth, postCreateValidation, PostController.create);
 app.delete('/posts/:id', checkAuth, PostController.remove);
-app.patch('/posts/:id', checkAuth, PostController.update);
+app.post(
+	'/posts',
+	checkAuth,
+	postCreateValidation,
+	handleValidationErrors,
+	PostController.create,
+);
+app.patch(
+	'/posts/:id',
+	checkAuth,
+	postCreateValidation,
+	handleValidationErrors,
+	PostController.update,
+);
 
 app.listen(4444, (error) => {
 	if (error) {
